@@ -15,58 +15,98 @@ st.write(
 
 # 1. Função Robusta de Extração e Padronização da Bitola
 def padronizar_bitola(val_existente, desc):
-    # Se já existir valor na coluna de bitola, padroniza o existente
-    texto_base = str(val_existente).strip() if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan"] else str(desc).strip()
-    
+    texto_base = (
+        str(val_existente).strip()
+        if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan"]
+        else str(desc).strip()
+    )
+
     if not texto_base or texto_base == "nan":
         return ""
 
     text_norm = re.sub(r"(\d+);(\d+)", r"\1/\2", texto_base)
     text_norm = text_norm.replace("”", '"').replace("''", '"').replace("`", "'")
 
-    text_clean = re.sub(r"\bSAE\s*100R(?:12|19|1|2|4|7)(?:[A-Z]*)\b", "SAE_SPEC", text_norm, flags=re.IGNORECASE)
-    text_clean = re.sub(r"\b006-\d+-\d+\b", "PART_SPEC", text_clean, flags=re.IGNORECASE)
+    text_clean = re.sub(
+        r"\bSAE\s*100R(?:12|19|1|2|4|7)(?:[A-Z]*)\b",
+        "SAE_SPEC",
+        text_norm,
+        flags=re.IGNORECASE,
+    )
+    text_clean = re.sub(
+        r"\b006-\d+-\d+\b", "PART_SPEC", text_clean, flags=re.IGNORECASE
+    )
 
-    # Frações compostas (1 1/4", 2-1/2", 1.1/4")
-    m_mixed = re.search(r'(\d+)[\s\-\;\.]+(\d+\/\d+)\s*(?:"|\'|in|ID|pol)?', text_clean, re.IGNORECASE)
+    m_mixed = re.search(
+        r'(\d+)[\s\-\;\.]+(\d+\/\d+)\s*(?:"|\'|in|ID|pol)?',
+        text_clean,
+        re.IGNORECASE,
+    )
     if m_mixed:
         return f'{m_mixed.group(1)}.{m_mixed.group(2)}"'
 
-    # Frações simples (1/4", 3/8", 1/2", 3/4")
-    m_frac = re.search(r'(\d+\/\d+)\s*(?:"|\'|in|ID|pol)?', text_clean, re.IGNORECASE)
+    m_frac = re.search(
+        r'(\d+\/\d+)\s*(?:"|\'|in|ID|pol)?', text_clean, re.IGNORECASE
+    )
     if m_frac:
         return f'{m_frac.group(1)}"'
 
-    # Milímetros (12,70mm, 31,75mm)
     m_mm = re.search(r"(\d+(?:[.,]\d+)?)\s*mm", texto_base, re.IGNORECASE)
     if m_mm:
         val_mm = float(m_mm.group(1).replace(",", "."))
-        mm_map = {6.35: '1/4"', 9.52: '3/8"', 12.7: '1/2"', 15.87: '5/8"', 19.05: '3/4"', 25.4: '1"', 31.75: '1.1/4"'}
+        mm_map = {
+            6.35: '1/4"',
+            9.52: '3/8"',
+            12.7: '1/2"',
+            15.87: '5/8"',
+            19.05: '3/4"',
+            25.4: '1"',
+            31.75: '1.1/4"',
+        }
         for k, v in mm_map.items():
             if abs(val_mm - k) < 0.5:
                 return v
 
     dash_map = {
-        "4": '1/4"', "04": '1/4"', "6": '3/8"', "06": '3/8"',
-        "8": '1/2"', "08": '1/2"', "10": '5/8"', "12": '3/4"',
-        "16": '1"', "20": '1.1/4"'
+        "4": '1/4"',
+        "04": '1/4"',
+        "6": '3/8"',
+        "06": '3/8"',
+        "8": '1/2"',
+        "08": '1/2"',
+        "10": '5/8"',
+        "12": '3/4"',
+        "16": '1"',
+        "20": '1.1/4"',
     }
 
     m_dash_q = re.search(r"\b(4|6|8|10|12|16)\s*(?:\"|')\b", text_clean)
     if m_dash_q and m_dash_q.group(1) in dash_map:
         return dash_map[m_dash_q.group(1)]
 
-    for m in re.finditer(r"(?:JIC\s*|#|,\s*-|-\s*|^-\s*)(\d{1,2})\b", text_clean, re.IGNORECASE):
+    for m in re.finditer(
+        r"(?:JIC\s*|#|,\s*-|-\s*|^-\s*)(\d{1,2})\b", text_clean, re.IGNORECASE
+    ):
         if m.group(1) in dash_map:
             return dash_map[m.group(1)]
 
-    m_whole = re.search(r'(?:Bitola:\s*|ID\s*|x\s*|\b|^)([1-3])\s*(?:"|\'|in|pol)\b', text_clean, re.IGNORECASE)
+    m_whole = re.search(
+        r'(?:Bitola:\s*|ID\s*|x\s*|\b|^)([1-3])\s*(?:"|\'|in|pol)\b',
+        text_clean,
+        re.IGNORECASE,
+    )
     if m_whole:
         return f'{m_whole.group(1)}"'
 
     m_dn = re.search(r"\bDN\s*(\d+)", texto_base, re.IGNORECASE)
     if m_dn:
-        dn_map = {"6": '1/4"', "10": '3/8"', "12": '1/2"', "19": '3/4"', "25": '1"'}
+        dn_map = {
+            "6": '1/4"',
+            "10": '3/8"',
+            "12": '1/2"',
+            "19": '3/4"',
+            "25": '1"',
+        }
         if m_dn.group(1) in dn_map:
             return dn_map[m_dn.group(1)]
 
@@ -75,37 +115,43 @@ def padronizar_bitola(val_existente, desc):
 
 # 2. Função de Padronização e Conversão de Pressão de Trabalho
 def padronizar_pressao(val_existente, desc):
-    val_str = str(val_existente).strip() if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan", "-", "???????????"] else ""
-    
+    val_str = (
+        str(val_existente).strip()
+        if pd.notna(val_existente)
+        and str(val_existente).strip() not in ["", "nan", "-", "???????????"]
+        else ""
+    )
+
     if not val_str:
-        # Tenta extrair da descrição caso o campo esteja vazio
-        m_desc = re.search(r'(\d+(?:\.\d+)?\s*(?:PSI|BAR|psi|bar)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:PSI|BAR|psi|bar))?)', str(desc))
+        m_desc = re.search(
+            r"(\d+(?:\.\d+)?\s*(?:PSI|BAR|psi|bar)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:PSI|BAR|psi|bar))?)",
+            str(desc),
+        )
         val_str = m_desc.group(1) if m_desc else ""
 
     if not val_str:
         return ""
 
-    # Se contiver informação de PSI e BAR juntas, mantém apenas o PSI
-    m_psi = re.search(r'(\d+(?:\.\d+)?)\s*PSI', val_str, re.IGNORECASE)
+    m_psi = re.search(r"(\d+(?:\.\d+)?)\s*PSI", val_str, re.IGNORECASE)
     if m_psi:
         num = float(m_psi.group(1))
-        # Se for um valor com decimais como 5801.52, arredonda para inteiro
         num_int = int(round(num))
-        # Se terminar próximo de dezenas/centenas incomuns por conversão (ex: 3989), arredonda para centenas (ex: 3900/4000)
         if num_int % 100 != 0 and abs(num_int - round(num_int, -2)) < 15:
             num_int = int(round(num_int, -2))
         return f"{num_int} PSI"
 
-    # Se contiver apenas BAR, converte para PSI (1 BAR = 14.50377 PSI)
-    m_bar = re.search(r'(\d+(?:\.\d+)?)\s*BAR', val_str, re.IGNORECASE)
+    m_bar = re.search(r"(\d+(?:\.\d+)?)\s*BAR", val_str, re.IGNORECASE)
     if m_bar:
         num_bar = float(m_bar.group(1))
         num_psi = num_bar * 14.50377
-        num_int = int(round(num_psi, -2)) if num_psi > 1000 else int(round(num_psi))
+        num_int = (
+            int(round(num_psi, -2))
+            if num_psi > 1000
+            else int(round(num_psi))
+        )
         return f"{num_int} PSI"
 
-    # Se for apenas valor numérico puro
-    m_num = re.search(r'(\d+(?:\.\d+)?)', val_str)
+    m_num = re.search(r"(\d+(?:\.\d+)?)", val_str)
     if m_num:
         num = float(m_num.group(1))
         num_int = int(round(num))
@@ -118,14 +164,17 @@ def padronizar_pressao(val_existente, desc):
 
 # 3. Função de Padronização de Conexão (Considerando Reta quando sem ângulo)
 def padronizar_conexao(val_existente, desc, bitola):
-    texto = str(val_existente).strip() if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan"] else str(desc).strip()
+    texto = (
+        str(val_existente).strip()
+        if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan"]
+        else str(desc).strip()
+    )
     if not texto or texto == "nan":
         return ""
 
     texto_upper = texto.upper()
     has_90 = bool(re.search(r"90|CURVA|ANGULO|ÂNGULO", texto_upper))
 
-    # Mapeamentos segundo a lista do PNG
     if "20 ORFS" in texto_upper or "200FOI" in texto_upper:
         return "20 ORFS"
     elif "BSP" in texto_upper:
@@ -139,13 +188,20 @@ def padronizar_conexao(val_existente, desc, bitola):
     elif "ABRAÇADEIRA" in texto_upper or "SUCÇÃO" in texto_upper:
         return "Abraçadeira"
 
-    # Conexões JIC
     jic_num = ""
     m_jic = re.search(r"JIC\s*0?(\d{1,2})", texto_upper)
     if m_jic:
         jic_num = m_jic.group(1)
     elif bitola:
-        bit_map = {'1/4"': "04", '3/8"': "06", '1/2"': "08", '5/8"': "10", '3/4"': "12", '1"': "16", '1.1/4"': "20"}
+        bit_map = {
+            '1/4"': "04",
+            '3/8"': "06",
+            '1/2"': "08",
+            '5/8"': "10",
+            '3/4"': "12",
+            '1"': "16",
+            '1.1/4"': "20",
+        }
         jic_num = bit_map.get(bitola, "")
 
     if jic_num:
@@ -160,7 +216,11 @@ def padronizar_conexao(val_existente, desc, bitola):
 
 # 4. Função de Comprimento
 def padronizar_comprimento(val_existente, desc):
-    comp = str(val_existente).strip() if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan"] else ""
+    comp = (
+        str(val_existente).strip()
+        if pd.notna(val_existente) and str(val_existente).strip() not in ["", "nan"]
+        else ""
+    )
     desc_str = str(desc).strip() if pd.notna(desc) else ""
     texto = f"{comp} {desc_str}"
 
@@ -183,20 +243,42 @@ def padronizar_comprimento(val_existente, desc):
 
 
 # Interface de Upload
-uploaded_file = st.file_uploader("Escolha a planilha Excel (`.xlsx`)", type=["xlsx", "xls"])
+uploaded_file = st.file_uploader(
+    "Escolha a planilha Excel (`.xlsx`)", type=["xlsx", "xls"]
+)
 
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file, sheet_name=0)
 
-    # Processamento linha a linha respeitando a informação existente
+    # CORREÇÃO DO ERRO: Garantir que todas as colunas aceitem strings sem conflito de dtypes (float64 -> object)
+    colunas_alvo = [
+        "Bitola",
+        "Comprimento",
+        "Conexão 1",
+        "Conexão 2",
+        "Pressão de Trabalho",
+        "Descrição",
+    ]
+    for col in colunas_alvo:
+        if col not in df.columns:
+            df[col] = ""
+        df[col] = df[col].astype(object)
+
+    # Processamento linha a linha
     for idx, row in df.iterrows():
-        desc_orig = row["Descrição"] if "Descrição" in df.columns else ""
-        
+        desc_orig = row["Descrição"] if pd.notna(row["Descrição"]) else ""
+
         bitola_val = padronizar_bitola(row.get("Bitola", ""), desc_orig)
-        pressao_val = padronizar_pressao(row.get("Pressão de Trabalho", ""), desc_orig)
+        pressao_val = padronizar_pressao(
+            row.get("Pressão de Trabalho", ""), desc_orig
+        )
         comp_val = padronizar_comprimento(row.get("Comprimento", ""), desc_orig)
-        c1_val = padronizar_conexao(row.get("Conexão 1", ""), desc_orig, bitola_val)
-        c2_val = padronizar_conexao(row.get("Conexão 2", ""), desc_orig, bitola_val)
+        c1_val = padronizar_conexao(
+            row.get("Conexão 1", ""), desc_orig, bitola_val
+        )
+        c2_val = padronizar_conexao(
+            row.get("Conexão 2", ""), desc_orig, bitola_val
+        )
 
         df.at[idx, "Bitola"] = bitola_val
         df.at[idx, "Pressão de Trabalho"] = pressao_val
@@ -204,7 +286,6 @@ if uploaded_file is not None:
         df.at[idx, "Conexão 1"] = c1_val
         df.at[idx, "Conexão 2"] = c2_val
 
-        # Padroniza a própria coluna "Descrição": Mangueira + Bitola + Pressão
         parts = ["Mangueira"]
         if bitola_val:
             parts.append(bitola_val)
